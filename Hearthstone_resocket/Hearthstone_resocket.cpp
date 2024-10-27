@@ -151,7 +151,7 @@ int get_list_Hearthstone( vector<MIB_TCPROW2>* Hearthstone_list)
 }
 DWORD thread_resocket(PVOID param)
 {
-    //vector<MIB_TCPROW2> g_battlenet;//战网网络连接
+   
     vector<MIB_TCPROW2> g_Hearthstone;//炉石传说网络连接
     do
     {
