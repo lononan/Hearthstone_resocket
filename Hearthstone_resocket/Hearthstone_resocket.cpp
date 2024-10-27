@@ -38,13 +38,11 @@ char* GetProcessName(DWORD dwPid,  char* szModuleName,DWORD buffsize)
     
     return 0;
 }
-vector<MIB_TCPROW2> g_battlenet;//战网网络连接
-vector<MIB_TCPROW2> g_Hearthstone;//炉石传说网络连接
 
-const char *g_battlenetname="\\Battle.net.exe", * g_Hearthstonename="\\Hearthstone.exe";
-int get_list(vector<MIB_TCPROW2>* battlenet_list, vector<MIB_TCPROW2>* Hearthstone_list)
+
+int get_list_Hearthstone( vector<MIB_TCPROW2>* Hearthstone_list)
 {
-    battlenet_list->resize(0);
+    const char* g_Hearthstonename = "\\Hearthstone.exe";
     Hearthstone_list->resize(0);
 
 
@@ -73,7 +71,7 @@ int get_list(vector<MIB_TCPROW2>* battlenet_list, vector<MIB_TCPROW2>* Hearthsto
     {
         FREE(pTcpTable);
         pTcpTable = (MIB_TCPTABLE2*)MALLOC(ulSize);
-        if (pTcpTable == NULL) 
+        if (pTcpTable == NULL)
         {
             printf("Error allocating memory\n");
             return 1;
@@ -83,25 +81,25 @@ int get_list(vector<MIB_TCPROW2>* battlenet_list, vector<MIB_TCPROW2>* Hearthsto
     // 
     // the actual data we require
     string socketstate;
-  
+
     if ((dwRetVal = GetTcpTable2(pTcpTable, &ulSize, TRUE)) == NO_ERROR)
     {
         printf("PID     \t\tLocalAddr:Portt\t\tRemoteAddr:Port        \tstate\n");
         for (int i = 0; i < (int)pTcpTable->dwNumEntries; i++)
         {
-            if (MIB_TCP_STATE_ESTAB!= pTcpTable->table[i].dwState)//过滤不是连接状态的连接
+            if (MIB_TCP_STATE_ESTAB != pTcpTable->table[i].dwState)//过滤不是连接状态的连接
             {
                 continue;
             }
-           
+
             char processname[256];
-            char *filename=GetProcessName(pTcpTable->table[i].dwOwningPid, processname, 256);
-            
+            char* filename = GetProcessName(pTcpTable->table[i].dwOwningPid, processname, 256);
+
             if (!filename)
             {
                 continue;
             }
-            if (_stricmp(g_battlenetname, filename)!=0 && _stricmp(g_Hearthstonename, filename) != 0)//过滤进程
+            if ( _stricmp(g_Hearthstonename, filename) != 0)//过滤进程
             {
                 continue;
             }
@@ -119,7 +117,7 @@ int get_list(vector<MIB_TCPROW2>* battlenet_list, vector<MIB_TCPROW2>* Hearthsto
             IpAddr.S_un.S_addr = (u_long)pTcpTable->table[i].dwRemoteAddr;
             InetNtopA(AF_INET, &IpAddr, szRemoteAddr, 128);
             DWORD dwRemotePort = ntohs(pTcpTable->table[i].dwRemotePort);
-            socketstate = "["+to_string(pTcpTable->table[i].dwOwningPid)+"]"+ string(filename+1) + "\t";
+            socketstate = "[" + to_string(pTcpTable->table[i].dwOwningPid) + "]" + string(filename + 1) + "\t";
             socketstate = socketstate + string(szLocalAddr) + ":" + to_string(dwLocalPort) + "\t";
             socketstate = socketstate + string(szRemoteAddr) + ":" + to_string(dwRemotePort) + "\t";
             socketstate = socketstate + "[" + to_string(pTcpTable->table[i].dwState) + "]\n";
@@ -127,18 +125,15 @@ int get_list(vector<MIB_TCPROW2>* battlenet_list, vector<MIB_TCPROW2>* Hearthsto
             {
                 continue;
             }
-            
+
             printf(socketstate.c_str());
-     
-            if (_stricmp(g_battlenetname, filename) ==0)
-            {
-                g_battlenet.push_back(pTcpTable->table[i]);
-            }
+
+        
             if (_stricmp(g_Hearthstonename, filename) == 0)
             {
-                g_Hearthstone.push_back(pTcpTable->table[i]);
+                Hearthstone_list->push_back(pTcpTable->table[i]);
             }
-            
+
 
         }
     }
@@ -156,46 +151,39 @@ int get_list(vector<MIB_TCPROW2>* battlenet_list, vector<MIB_TCPROW2>* Hearthsto
 }
 DWORD thread_resocket(PVOID param)
 {
-
+    //vector<MIB_TCPROW2> g_battlenet;//战网网络连接
+    vector<MIB_TCPROW2> g_Hearthstone;//炉石传说网络连接
     do
     {
 
-        //SetTcpEntry((MIB_TCPROW*)&srtTcpRow);
-       // pTcpTable->table[i].dwState = MIB_TCP_STATE_DELETE_TCB;
-        //    dwRetVal = SetTcpEntry((MIB_TCPROW*)&pTcpTable->table[i]);
-        if (GetAsyncKeyState(VK_CONTROL) && GetAsyncKeyState(VK_DELETE)&1)
+        if (GetAsyncKeyState(VK_RCONTROL) && (GetAsyncKeyState(VK_DELETE)&1))
         {
+            
             printf("正在拔线....\n");
-            get_list(&g_battlenet, &g_Hearthstone);
-            bool samesocket = false;
-         
-            for (int i = 0; i < g_Hearthstone.size(); i++)
+            get_list_Hearthstone( &g_Hearthstone);
+     
+            int count = g_Hearthstone.size();
+            if (count > 1)
             {
-                samesocket = false;
-                for (size_t k = 0; k < g_battlenet.size(); k++)
-                {
-                    if (g_Hearthstone[i].dwRemoteAddr== g_battlenet[k].dwRemoteAddr && g_Hearthstone[i].dwRemotePort == g_battlenet[k].dwRemotePort)
-                    {
-                        samesocket = true;
-                        break;
-                    }
-                }
-                if (samesocket==false)
-                {
-                    g_Hearthstone[i].dwState = MIB_TCP_STATE_DELETE_TCB;//重置网络连接
-                    
-                    char szLocalAddr[128];
-                    char szRemoteAddr[128];
-                    InetNtopA(AF_INET, &g_Hearthstone[i].dwLocalAddr, szLocalAddr, 128);
-                    DWORD dwLocalPort = ntohs(g_Hearthstone[i].dwLocalPort);
-               
-                    InetNtopA(AF_INET, &g_Hearthstone[i].dwRemoteAddr, szRemoteAddr, 128);
-                    DWORD dwRemotePort = ntohs(g_Hearthstone[i].dwRemotePort);
-                    printf("已经断开连接--->%s:%d ---- %s:%d \n", szLocalAddr, dwLocalPort, szRemoteAddr, dwRemotePort);
-                    SetTcpEntry((MIB_TCPROW*)&g_Hearthstone[i]);
-                }
+
+                MIB_TCPROW* closeSocket = (MIB_TCPROW*)&g_Hearthstone[count - 1];
+                closeSocket->dwState = MIB_TCP_STATE_DELETE_TCB;//重置网络连接
+
+                char szLocalAddr[128];
+                char szRemoteAddr[128];
+                InetNtopA(AF_INET, &closeSocket->dwLocalAddr, szLocalAddr, 128);
+                DWORD dwLocalPort = ntohs(closeSocket->dwLocalPort);
+
+                InetNtopA(AF_INET, &closeSocket->dwRemoteAddr, szRemoteAddr, 128);
+                DWORD dwRemotePort = ntohs(closeSocket->dwRemotePort);
+                printf("已经断开连接--->%s:%d ---- %s:%d \n", szLocalAddr, dwLocalPort, szRemoteAddr, dwRemotePort);
+                SetTcpEntry(closeSocket);
+
+                Beep(880, 50);
             }
-            Sleep(500);
+            
+         
+            Sleep(20);
         }
        
         
@@ -206,11 +194,15 @@ DWORD thread_resocket(PVOID param)
     
     return 0;
 }
+
+
 int main()
 {
-   
+
     CreateThread(0, 0, thread_resocket, 0, 0, 0);
-    printf("启动成功\n登录[暴雪战网]且[炉石传说]游戏中\n按下热键[Ctrl+Delete]拔线");
+   
+    printf("启动成功\n[炉石传说]游戏中,按下热键[Ctrl+Delete]拔线\n");
     getchar();
+ 
     return 0;
 }
